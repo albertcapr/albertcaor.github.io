@@ -19048,8 +19048,10 @@ function buscarProductoOFF(codigo) {
           '<div style="font-size:32px;margin-bottom:8px;">❌</div>' +
           '<div style="font-size:13px;font-weight:700;color:#DC2626;margin-bottom:8px;">Producto no encontrado</div>' +
           '<div style="font-size:11px;color:#9A3412;margin-bottom:12px;">Código: ' + codigo + '</div>' +
-          '<button onclick="abrirIntroManualEAN()" style="padding:10px 20px;background:#EF4444;color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">⌨️ Introducir manualmente</button>' +
-          '</div>';
+          '<div style="display:flex;gap:8px;">' +
+          '<button onclick="_mostrarPlantillasAlimentos(\'' + codigo + '\')" style="flex:1;padding:10px 14px;background:var(--green);color:white;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">⚡ Plantillas rápidas</button>' +
+          '<button onclick="abrirIntroManualEAN(\'' + codigo + '\')" style="flex:1;padding:10px 14px;background:#EF4444;color:white;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">⌨️ Manual</button>' +
+          '</div></div>';
         return;
       }
       var p = data.product;
@@ -29705,6 +29707,143 @@ function escanearFotoBarcode(input) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// PLANTILLAS RÁPIDAS DE ALIMENTOS COMUNES (valores típicos por 100g,
+// basados en tablas nutricionales estándar USDA/BEDCA) — para cuando
+// el producto escaneado no está en Open Food Facts
+// ─────────────────────────────────────────────────────────────
+var PLANTILLAS_ALIMENTOS = {
+  'Frutos secos': [
+    {n:'Pistachos', k:562, p:20.6, c:27.7, g:45.3},
+    {n:'Almendras', k:579, p:21.2, c:21.6, g:49.9},
+    {n:'Nueces', k:654, p:15.2, c:13.7, g:65.2},
+    {n:'Anacardos', k:553, p:18.2, c:30.2, g:43.9},
+    {n:'Avellanas', k:628, p:15.0, c:16.7, g:60.8},
+    {n:'Cacahuetes', k:567, p:25.8, c:16.1, g:49.2},
+    {n:'Pipas de girasol', k:584, p:20.8, c:20.0, g:51.5},
+  ],
+  'Carnes': [
+    {n:'Pechuga de pollo', k:165, p:31.0, c:0, g:3.6},
+    {n:'Pechuga de pavo', k:135, p:30.1, c:0, g:1.0},
+    {n:'Ternera magra', k:172, p:26.0, c:0, g:7.0},
+    {n:'Solomillo de cerdo', k:143, p:26.0, c:0, g:3.5},
+    {n:'Carne picada de ternera', k:215, p:26.0, c:0, g:12.0},
+    {n:'Jamón cocido', k:113, p:18.0, c:1.0, g:4.0},
+    {n:'Jamón serrano', k:241, p:31.0, c:0.5, g:13.0},
+  ],
+  'Pescado': [
+    {n:'Salmón', k:208, p:20.4, c:0, g:13.4},
+    {n:'Atún fresco', k:144, p:23.3, c:0, g:4.9},
+    {n:'Atún en lata (al natural)', k:116, p:25.5, c:0, g:1.0},
+    {n:'Merluza', k:86, p:17.8, c:0, g:1.3},
+    {n:'Dorada', k:96, p:19.8, c:0, g:1.8},
+    {n:'Gambas', k:99, p:24.0, c:0.2, g:0.3},
+    {n:'Bacalao', k:82, p:17.8, c:0, g:0.7},
+  ],
+  'Lácteos': [
+    {n:'Leche entera', k:61, p:3.2, c:4.8, g:3.3},
+    {n:'Leche desnatada', k:35, p:3.4, c:5.0, g:0.1},
+    {n:'Yogur natural', k:61, p:3.5, c:4.7, g:3.3},
+    {n:'Yogur griego', k:97, p:9.0, c:4.0, g:5.0},
+    {n:'Queso fresco', k:98, p:11.0, c:3.5, g:4.5},
+    {n:'Queso curado', k:402, p:26.0, c:1.3, g:33.0},
+    {n:'Requesón', k:98, p:11.1, c:3.4, g:4.3},
+  ],
+  'Pasta y cereales': [
+    {n:'Pasta cocida', k:158, p:5.8, c:30.9, g:0.9},
+    {n:'Arroz blanco cocido', k:130, p:2.7, c:28.2, g:0.3},
+    {n:'Arroz integral cocido', k:111, p:2.6, c:23.0, g:0.9},
+    {n:'Pan blanco', k:265, p:9.0, c:49.0, g:3.2},
+    {n:'Pan integral', k:247, p:13.0, c:41.3, g:3.4},
+    {n:'Avena', k:389, p:16.9, c:66.3, g:6.9},
+    {n:'Quinoa cocida', k:120, p:4.4, c:21.3, g:1.9},
+  ],
+  'Fruta': [
+    {n:'Plátano', k:89, p:1.1, c:22.8, g:0.3},
+    {n:'Manzana', k:52, p:0.3, c:13.8, g:0.2},
+    {n:'Naranja', k:47, p:0.9, c:11.8, g:0.1},
+    {n:'Fresas', k:32, p:0.7, c:7.7, g:0.3},
+    {n:'Aguacate', k:160, p:2.0, c:8.5, g:14.7},
+  ],
+  'Verdura': [
+    {n:'Brócoli', k:34, p:2.8, c:6.6, g:0.4},
+    {n:'Espinacas', k:23, p:2.9, c:3.6, g:0.4},
+    {n:'Tomate', k:18, p:0.9, c:3.9, g:0.2},
+    {n:'Patata cocida', k:87, p:1.9, c:20.1, g:0.1},
+    {n:'Boniato cocido', k:90, p:1.6, c:20.7, g:0.2},
+  ],
+  'Huevos y otros': [
+    {n:'Huevo entero', k:155, p:13.0, c:1.1, g:11.0},
+    {n:'Clara de huevo', k:52, p:11.0, c:0.7, g:0.2},
+    {n:'Aceite de oliva', k:884, p:0, c:0, g:100},
+    {n:'Miel', k:304, p:0.3, c:82.4, g:0},
+  ]
+};
+
+function _mostrarPlantillasAlimentos(codigoOrigen) {
+  var res = document.getElementById('resultadoEAN');
+  if (!res) return;
+  var html = '<div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:14px;">';
+  html += '<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px;">⚡ Plantillas rápidas</div>';
+  html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Toca un alimento para añadirlo al instante (valores por 100g, ajustables después)</div>';
+  Object.keys(PLANTILLAS_ALIMENTOS).forEach(function(cat){
+    html += '<div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px;">' + cat + '</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    PLANTILLAS_ALIMENTOS[cat].forEach(function(it, idx){
+      html += '<button onclick="_usarPlantillaAlimento(\'' + cat.replace(/'/g,"\\'") + '\',' + idx + ')" style="padding:8px 12px;background:var(--bg);border:1.5px solid var(--border);border-radius:20px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;">' + it.n + ' <span style="color:var(--text-muted);font-size:10px;">· ' + it.k + 'kcal</span></button>';
+    });
+    html += '</div>';
+  });
+  html += '<button onclick="abrirCrearAlimentoDiarioDesdeEscaner()" style="width:100%;margin-top:14px;padding:11px;border:1.5px dashed var(--border);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--text-muted);font-family:inherit;">➕ No está en la lista — crear alimento personalizado</button>';
+  if (codigoOrigen) {
+    html += '<div style="margin-top:8px;text-align:center;"><button onclick="abrirIntroManualEAN(\'' + codigoOrigen + '\')" style="background:none;border:none;color:var(--text-hint);font-size:11px;text-decoration:underline;cursor:pointer;font-family:inherit;">Volver a intentar con el código</button></div>';
+  }
+  html += '</div>';
+  res.innerHTML = html;
+}
+
+function _usarPlantillaAlimento(cat, idx) {
+  var it = (PLANTILLAS_ALIMENTOS[cat] || [])[idx];
+  if (!it) return;
+  window._offProducto = { nombre: it.n, kcal: it.k, prot: it.p, carb: it.c, gras: it.g };
+  // Reutilizamos el mismo flujo de confirmación que un producto encontrado en OFF,
+  // mostrando selector de gramos/comida en vez de añadir directo a ciegas.
+  var res = document.getElementById('resultadoEAN');
+  if (!res) return;
+  var html = '<div style="background:var(--card);border:1.5px solid var(--green);border-radius:16px;padding:14px;">';
+  html += '<div style="font-size:14px;font-weight:900;color:var(--text);margin-bottom:10px;">✅ ' + it.n + '</div>';
+  html += '<div style="font-size:10px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Valores por 100g</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">';
+  [
+    {v:it.k.toFixed(0),l:'Kcal',c:'#EF4444',u:''},
+    {v:it.p.toFixed(1),l:'Prot',c:'#3B82F6',u:'g'},
+    {v:it.c.toFixed(1),l:'Carb',c:'#F97316',u:'g'},
+    {v:it.g.toFixed(1),l:'Grasas',c:'#A855F7',u:'g'},
+  ].forEach(function(m){
+    html += '<div style="background:' + m.c + '15;border:1px solid ' + m.c + '30;border-radius:10px;padding:8px 4px;text-align:center;">';
+    html += '<div style="font-size:16px;font-weight:900;color:' + m.c + ';">' + m.v + '<span style="font-size:10px;">' + m.u + '</span></div>';
+    html += '<div style="font-size:9px;font-weight:700;color:var(--text-muted);margin-top:1px;">' + m.l + '</div></div>';
+  });
+  html += '</div>';
+  html += '<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px;">Añadir al diario</div>';
+  html += '<div style="display:flex;gap:8px;margin-bottom:10px;">';
+  html += '<div style="flex:1;"><div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;">Cantidad (g)</div>';
+  html += '<input id="gramosOFF" type="number" value="100" style="width:100%;padding:10px;border:1.5px solid var(--green);border-radius:10px;font-size:16px;font-weight:800;font-family:inherit;background:var(--bg);color:var(--text);text-align:center;box-sizing:border-box;"></div>';
+  html += '<div style="flex:1;"><div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;">Comida</div>';
+  html += '<select id="comidaOFF" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;">';
+  html += '<option value="desayuno">🌅 Desayuno</option><option value="almuerzo" selected>☀️ Almuerzo</option><option value="merienda">🍎 Merienda</option><option value="cena">🌙 Cena</option>';
+  html += '</select></div></div>';
+  html += '<button onclick="annadirProductoOFF()" style="width:100%;padding:13px;background:var(--green);color:white;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">✅ Añadir al diario</button>';
+  html += '<div style="margin-top:8px;text-align:center;"><button onclick="_mostrarPlantillasAlimentos()" style="background:none;border:none;color:var(--text-hint);font-size:11px;text-decoration:underline;cursor:pointer;font-family:inherit;">← Volver a plantillas</button></div>';
+  html += '</div>';
+  res.innerHTML = html;
+}
+
+function abrirCrearAlimentoDiarioDesdeEscaner() {
+  var fecha = new Date().toISOString().split('T')[0];
+  abrirCrearAlimentoDiario(fecha, 'almuerzo');
+}
+
 function _preguntarCodigoManual() {
   var res = document.getElementById('resultadoEAN');
   if (res) res.innerHTML = '<div style="background:#FFF7ED;border:1.5px solid #F97316;border-radius:12px;padding:14px;">' +
@@ -29716,18 +29855,21 @@ function _preguntarCodigoManual() {
     '</div></div>';
 }
 
-function abrirIntroManualEAN() {
+function abrirIntroManualEAN(codigoPrevio) {
   var res = document.getElementById('resultadoEAN');
   if (!res) return;
+  // Recuperar lo que el usuario ya había escrito arriba, si lo hay
+  var valPrevio = codigoPrevio || (document.getElementById('eanInput')||{}).value || '';
+  valPrevio = valPrevio.trim();
   res.innerHTML = '<div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;">' +
     '<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px;">⌨️ Introduce el código de barras</div>' +
     '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">El número que aparece debajo del código de barras del producto</div>' +
     '<div style="display:flex;gap:8px;">' +
-    '<input id="_eanManualInput" type="text" inputmode="numeric" placeholder="Ej: 8410909963382" style="flex:1;padding:11px;border:1.5px solid var(--green);border-radius:10px;font-size:16px;font-weight:700;font-family:inherit;background:var(--bg);color:var(--text);" onkeydown="if(event.key===\'Enter\')buscarProductoOFF(this.value.trim())">' +
+    '<input id="_eanManualInput" type="text" inputmode="numeric" placeholder="Ej: 8410909963382" value="' + valPrevio + '" style="flex:1;padding:11px;border:1.5px solid var(--green);border-radius:10px;font-size:16px;font-weight:700;font-family:inherit;background:var(--bg);color:var(--text);" onkeydown="if(event.key===\'Enter\')_buscarEAN()">' +
     '<button onclick="_buscarEAN()" style="padding:11px 16px;background:var(--green);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">🔍</button>' +
     '</div></div>';
-  // Focus the input
-  setTimeout(function(){ var el=document.getElementById('_eanManualInput'); if(el) el.focus(); }, 100);
+  // Focus the input y seleccionar el texto para editar fácilmente
+  setTimeout(function(){ var el=document.getElementById('_eanManualInput'); if(el){ el.focus(); el.select(); } }, 100);
 }
 
 function abrirCamaraEscaneo() {
